@@ -2,13 +2,34 @@
 """Get tab-completion candidates for a pcluster command."""
 
 import argparse
+import errno
+import logging
 import os
 import re
 import subprocess as sp
+from logging.handlers import RotatingFileHandler
 
 # TODO: implement file locking for this
 # TODO: handle region
 CLUSTERS_LIST_CACHE_FILE = "/tmp/pcluster-completion-candidates-cluster-list.txt"
+LOGGER = logging.getLogger(__name__)
+
+
+def config_logger():
+    logfile = "/tmp/pcluster-completions-log.txt"
+    try:
+        os.makedirs(os.path.dirname(logfile))
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise  # can safely ignore EEXISTS for this purpose...
+
+    log_file_handler = RotatingFileHandler(logfile, maxBytes=5 * 1024 * 1024, backupCount=1)
+    log_file_handler.setLevel(logging.DEBUG)
+    log_file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(module)s - %(message)s")
+    )
+    LOGGER.addHandler(log_file_handler)
+    LOGGER.setLevel(logging.DEBUG)
 
 
 def parse_args():
@@ -34,12 +55,12 @@ def _get_pcluster_commands():
         if have_seen_line_before_commands_list:
             commands_line_match = re.search(r'\{((.+,)+.+)\}', line)
             if not commands_line_match:
-                logging.debug("Did not find commands line in `pcluster --help` output")
+                LOGGER.debug("Did not find commands line in `pcluster --help` output")
                 return []
             return commands_line_match.group(1).split(",")
         elif re.search(r'positional arguments:', line):
             have_seen_line_before_commands_list = True
-    logging.debug("Did not find commands line precursor in `pcluster --help` output")
+    LOGGER.debug("Did not find commands line precursor in `pcluster --help` output")
     return []
 
 
@@ -64,8 +85,11 @@ def _get_list_of_clusters(subcommand, argv):
     # TODO: turn this into a decorator that's used by the appropriate subcommands
     if not os.path.exists(CLUSTERS_LIST_CACHE_FILE):
         _populate_clusters_list_cache_file()
+    clusters = []
     with open(CLUSTERS_LIST_CACHE_FILE) as cluster_names_file:
-        return [cluster_name_line.strip() for cluster_name_line in cluster_names_file]
+        clusters = [cluster_name_line.strip() for cluster_name_line in cluster_names_file]
+    LOGGER.debug(f"Found the following active clusters: {' '.join(clusters)}")
+    return clusters
 
 
 def _get_completions_for_createami_subcommand(subcommand, argv):
@@ -105,12 +129,15 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv):
     }
     subcommand = subcommand_argv[0]
     if subcommand not in subcommand_to_completions_getter:
-        logging.debug(f"No completion suggestions available for `pcluster {subcommand}`")
+        LOGGER.error(f"No completion suggestions available for `pcluster {subcommand}`")
         return []
+    LOGGER.debug(f"Getting completions for `pcluster {subcommand}`")
     return subcommand_to_completions_getter[subcommand](subcommand, subcommand_argv[1:])
 
 
 def main():
+    config_logger()
+    LOGGER.debug("pcluster completion script starting")
     args = parse_args()
     if args.subcommand_plus_args:
         completions = _get_completions_for_pcluster_subcommand(args.subcommand_plus_args)
