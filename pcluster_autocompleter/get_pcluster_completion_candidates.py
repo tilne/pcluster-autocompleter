@@ -71,10 +71,10 @@ def _populate_clusters_list_cache_file():
     This should be avoided whenever possible, since it requires running `pcluster list`,
     which is an awfully slow process to wait for during interactive tab-completion.
     """
-    pcluster_list_lines = sp.check_output("pcluster list".split()).decode().splitlines()
-    clusters = [pcluster_list_line.split()[0] for pcluster_list_line in pcluster_list_lines]
+    # pcluster_list_lines = sp.check_output("pcluster list".split()).decode().splitlines()
+    # clusters = [pcluster_list_line.split()[0] for pcluster_list_line in pcluster_list_lines]
     # TODO: get rid of this line when need for offline testing is gone
-    # clusters = ["clusterOne", "clusterTwo", "clusterThree"]
+    clusters = ["clusterOne", "clusterTwo", "clusterThree"]
     with open(CLUSTERS_LIST_CACHE_FILE, "w") as clusters_list_cache_file:
         for cluster in clusters:
             clusters_list_cache_file.write(f"{cluster}\n")
@@ -145,6 +145,3 @@ def main():
         completions = _get_pcluster_commands()
     print("\n".join(completions))
 
-
-if __name__ == "__main__":
-    main()
