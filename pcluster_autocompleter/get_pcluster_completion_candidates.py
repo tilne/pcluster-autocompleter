@@ -16,6 +16,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def config_logger():
+    # TODO: move this to a utils module that this and pcluster_completion_daemon can both use
     logfile = "/tmp/pcluster-completions-log.txt"
     try:
         os.makedirs(os.path.dirname(logfile))
