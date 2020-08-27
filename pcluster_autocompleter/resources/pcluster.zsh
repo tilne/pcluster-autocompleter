@@ -10,9 +10,9 @@ _pcluster() {
 
   # TODO: figure out how to handle PATH, pyenv initialization
   if [ "${#words}" -eq 2 ]; then
-    completions="$(get_pcluster_completion_candidates.py)"
+    completions="$(pcluster_autocompleter)"
   else
-    completions="$(get_pcluster_completion_candidates.py ${words[2,-1]})"
+    completions="$(pcluster_autocompleter ${words[2,-1]})"
   fi
 
   reply=(${(ps:\n:)completions})
