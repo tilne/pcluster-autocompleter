@@ -2,35 +2,18 @@
 """Get tab-completion candidates for a pcluster command."""
 
 import argparse
-import errno
 import logging
 import os
 import re
 import subprocess as sp
-from logging.handlers import RotatingFileHandler
+
+from pcluster_autocompleter.utils import config_logger
 
 # TODO: implement file locking for this
 # TODO: handle region
 CLUSTERS_LIST_CACHE_FILE = "/tmp/pcluster-completion-candidates-cluster-list.txt"
+LOG_PATH = "/tmp/pcluster-completions-log.txt"
 LOGGER = logging.getLogger(__name__)
-
-
-def config_logger():
-    # TODO: move this to a utils module that this and pcluster_completion_daemon can both use
-    logfile = "/tmp/pcluster-completions-log.txt"
-    try:
-        os.makedirs(os.path.dirname(logfile))
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise  # can safely ignore EEXISTS for this purpose...
-
-    log_file_handler = RotatingFileHandler(logfile, maxBytes=5 * 1024 * 1024, backupCount=1)
-    log_file_handler.setLevel(logging.DEBUG)
-    log_file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(module)s - %(message)s")
-    )
-    LOGGER.addHandler(log_file_handler)
-    LOGGER.setLevel(logging.DEBUG)
 
 
 def parse_args():
@@ -137,7 +120,7 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv):
 
 
 def main():
-    config_logger()
+    config_logger(LOGGER, LOG_PATH)
     LOGGER.debug("pcluster completion script starting")
     args = parse_args()
     if args.subcommand_plus_args:

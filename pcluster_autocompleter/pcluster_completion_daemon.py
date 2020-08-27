@@ -9,12 +9,13 @@ import logging
 import subprocess as sp
 import time
 from datetime import datetime, timedelta
-from logging.handlers import RotatingFileHandler
 
-from pcluster.cli import main
+from utils import config_logger
+
 
 # TODO: make this stuff configurable
 LOOP_TIME_IN_SECONDS = 600  # start another loop every 10 minutes
+LOG_PATH = "/tmp/pcluster-completions-daemon-log.txt"
 LOGGER = logging.getLogger(__name__)
 REGIONS = [
     # TODO: read this dynamically if static values aren't configured in config?
@@ -26,24 +27,6 @@ REGIONS = [
     "us-west-2",
 ]
 CACHE_PATH = "/tmp/pcluster-completions-daemon-cache.txt"
-
-
-def config_logger():
-    # TODO: move this to a utils module that this and get_pcluster_completion_candidates can both use
-    logfile = "/tmp/pcluster-completions-daemon-log.txt"
-    try:
-        os.makedirs(os.path.dirname(logfile))
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise  # can safely ignore EEXISTS for this purpose...
-
-    log_file_handler = RotatingFileHandler(logfile, maxBytes=5 * 1024 * 1024, backupCount=1)
-    log_file_handler.setLevel(logging.DEBUG)
-    log_file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(module)s - %(message)s")
-    )
-    LOGGER.addHandler(log_file_handler)
-    LOGGER.setLevel(logging.DEBUG)
 
 
 def _parse_fields_from_pcluster_list_line(output_line):
@@ -104,4 +87,5 @@ def _poll_cluster_statuses():
 
 
 def main():
+    config_logger(LOGGER, LOG_PATH)
     _poll_cluster_statuses()
