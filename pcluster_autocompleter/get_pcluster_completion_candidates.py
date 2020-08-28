@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import subprocess as sp
+from typing import Callable, List
 
 from pcluster_autocompleter.utils import config_logger
 
@@ -16,13 +17,13 @@ LOG_PATH = "/tmp/pcluster-completions-log.txt"
 LOGGER = logging.getLogger(__name__)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("subcommand_plus_args", nargs="*")
     return parser.parse_args()
 
 
-def _get_pcluster_commands():
+def _get_pcluster_commands() -> List[str]:
     """
     Parse the available pcluster commands from the help message.
 
@@ -48,7 +49,7 @@ def _get_pcluster_commands():
     return []
 
 
-def _populate_clusters_list_cache_file():
+def _populate_clusters_list_cache_file() -> None:
     """
     Populate CLUSTERS_LIST_CACHE_FILE with list of clusters for current region.
 
@@ -64,7 +65,7 @@ def _populate_clusters_list_cache_file():
             clusters_list_cache_file.write(f"{cluster}\n")
 
 
-def _get_list_of_clusters(subcommand, argv):
+def _get_list_of_clusters(subcommand: str, argv: List[str]) -> List[str]:
     """Return list of clusters from cached file."""
     # TODO: turn this into a decorator that's used by the appropriate subcommands
     if not os.path.exists(CLUSTERS_LIST_CACHE_FILE):
@@ -76,17 +77,17 @@ def _get_list_of_clusters(subcommand, argv):
     return clusters
 
 
-def _get_completions_for_createami_subcommand(subcommand, argv):
+def _get_completions_for_createami_subcommand(subcommand: str, argv: List[str]) -> List[str]:
     """TODO: implement me."""
     return []
 
 
-def _get_completions_for_dcv_subcommand(subcommand, argv):
+def _get_completions_for_dcv_subcommand(subcommand: str, argv: List[str]) -> List[str]:
     """TODO: implement me."""
     return []
 
 
-def _get_completions_for_pcluster_subcommand(subcommand_argv):
+def _get_completions_for_pcluster_subcommand(subcommand_argv: List[str]) -> List[str]:
     """
     Get completions for the given pcluster subcommand.
 
@@ -95,7 +96,7 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv):
                       subcommand thus far
     """
     # TODO: also suggest positional args specific to each command
-    _no_completions_function = lambda subcommand, argv: []
+    _no_completions_function: Callable[[str, List[str]], List[str]] = lambda subcommand, argv: []
     subcommand_to_completions_getter = {
         "create": _no_completions_function,
         "update": _get_list_of_clusters,
@@ -119,7 +120,7 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv):
     return subcommand_to_completions_getter[subcommand](subcommand, subcommand_argv[1:])
 
 
-def main():
+def main() -> None:
     config_logger(LOGGER, LOG_PATH)
     LOGGER.debug("pcluster completion script starting")
     args = parse_args()
@@ -128,4 +129,3 @@ def main():
     else:
         completions = _get_pcluster_commands()
     print("\n".join(completions))
-

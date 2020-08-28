@@ -4,7 +4,7 @@ import os
 from logging.handlers import RotatingFileHandler
 
 
-def config_logger(logger, log_path):
+def config_logger(logger: logging.Logger, log_path: str) -> None:
     log_path = "/tmp/pcluster-completions-log.txt"
     try:
         os.makedirs(os.path.dirname(log_path))

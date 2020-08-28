@@ -1,0 +1,3 @@
+import logging
+
+def config_logger(logger: logging.Logger, log_path: str) -> None: ...

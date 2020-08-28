@@ -1,15 +1,16 @@
 import os
-from setuptools import find_packages, setup
+from typing import List
+from setuptools import find_packages, setup  # type: ignore
 
 
 def readme():
     """Read the README file and use it as long description."""
-    with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
-        return f.read()
+    with open(os.path.join(os.path.dirname(__file__), "README.md")) as readme_file:
+        return readme_file.read()
 
 
 VERSION = "0.0.0"
-REQUIRES = []
+REQUIRES: List[str] = []
 DESCRIPTION = (
     "pcluster-autocompleter enables auto completion of the `pcluster` CLI commands for the bash, "
     "zsh, and fish shells. The `pcluster` CLI is used to interact with AWS ParallelCluster, an "
@@ -34,7 +35,7 @@ setup(
     },
     include_package_data=True,
     zip_safe=False,
-    package_data={"": ["examples/config"]},
+    package_data={"pcluster_autocompleter": ["py.typed", "util.pyi"]},
     long_description=readme(),
     classifiers=[
         "Development Status :: 5 - Production/Stable",

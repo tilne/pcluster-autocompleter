@@ -9,8 +9,9 @@ import logging
 import subprocess as sp
 import time
 from datetime import datetime, timedelta
+from typing import Dict, List, Union
 
-from utils import config_logger
+from pcluster_autocompleter.utils import config_logger
 
 
 # TODO: make this stuff configurable
@@ -29,7 +30,7 @@ REGIONS = [
 CACHE_PATH = "/tmp/pcluster-completions-daemon-cache.txt"
 
 
-def _parse_fields_from_pcluster_list_line(output_line):
+def _parse_fields_from_pcluster_list_line(output_line: str) -> Dict[str, str]:
     """Parse the fields from a line of `pcluster list` output."""
     fields = output_line.strip().split()
 
@@ -51,34 +52,34 @@ def _parse_fields_from_pcluster_list_line(output_line):
     return {"name": fields[0], "status": fields[1], "cli_version": fields[2]}
 
 
-def _parse_pcluster_list_output(output):
+def _parse_pcluster_list_output(output: str) -> List[Dict[str, str]]:
     """Parse the output from `pcluster list` and return a list of clusters."""
     return [_parse_fields_from_pcluster_list_line(output_line) for output_line in output.splitlines()]
 
 
-def _get_active_clusters_for_region(region):
+def _get_active_clusters_for_region(region: str) -> List[Dict[str, str]]:
     # TODO: handle no network connection
     output = sp.check_output(["pcluster list", "-r", region, "--help"], shell=True).decode()
     return _parse_pcluster_list_output(output)
 
 
-def _get_active_clusters_for_all_regions():
+def _get_active_clusters_for_all_regions() -> List[Dict[str, Union[str, List[Dict[str, str]]]]]:
     return [{"region": region, "clusters": _get_active_clusters_for_region(region)} for region in REGIONS]
 
 
-def _write_cluster_info_to_cache(clusters_info):
+def _write_cluster_info_to_cache(clusters_info: List[Dict[str, Union[str, List[Dict[str, str]]]]]) -> None:
     # TODO: file locking
     # TODO: is it ever necessary to update existing info rather than dumping the new info?
     with open(CACHE_PATH, "w") as cache_file:
         json.dump(clusters_info, cache_file)
 
 
-def _cache_active_clusters_for_all_regions():
+def _cache_active_clusters_for_all_regions() -> None:
     active_clusters = _get_active_clusters_for_all_regions()
     _write_cluster_info_to_cache(active_clusters)
 
 
-def _poll_cluster_statuses():
+def _poll_cluster_statuses() -> None:
     while True:
         next_loop_start_time = datetime.now() + timedelta(seconds=LOOP_TIME_IN_SECONDS)
         _cache_active_clusters_for_all_regions()
@@ -86,6 +87,6 @@ def _poll_cluster_statuses():
         time.sleep(seconds_until_next_loop)
 
 
-def main():
+def main() -> None:
     config_logger(LOGGER, LOG_PATH)
     _poll_cluster_statuses()
