@@ -6,7 +6,9 @@ import logging
 import os
 import re
 import subprocess as sp
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional
+
+from pcluster.config.pcluster_config import PclusterConfig  # type: ignore
 
 from pcluster_autocompleter.utils import config_logger
 
@@ -65,8 +67,34 @@ def _populate_clusters_list_cache_file() -> None:
             clusters_list_cache_file.write(f"{cluster}\n")
 
 
+def _parse_region_and_config_from_subcommand_args(argv: List[str]) -> Dict[str, str]:
+    """Return the region and config file path args in argv if they're there."""
+    argv_parser = argparse.ArgumentParser(add_help=False)
+    argv_parser.add_argument("-c", "--config")
+    argv_parser.add_argument("-r", "--region")
+    return vars(argv_parser.parse_known_args(argv))
+
+
+def _get_region_to_use(argv: List[str]) -> Optional[str]:
+    """Make a best-effort attempt to figure out which region we should query for resources."""
+    # TODO: is there a way to do this without replicating logic in the CLI?
+    # Order or precedence:
+    # 1) CLI arg (-r,--region)
+    # 2) config file (which will first try the AWS_DEFAULT_REGION envrion)
+    argv_options = _parse_region_and_config_from_subcommand_args(argv)
+    if argv_options.get("region"):
+        return argv_options.get("region")
+    # Initialize config object so it can do figure out the rest and set AWS_DEFAULT_REGION
+    # TODO: do this without the config?
+    # TODO: add option to config constructor to avoid full initialization (which invokes a lot of network calls)
+    PclusterConfig.init_aws(argv_options.get("config"))
+    return os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+
+
 def _get_list_of_clusters(subcommand: str, argv: List[str]) -> List[str]:
     """Return list of clusters from cached file."""
+    region = _get_region_to_use(argv)
+    # TODO: use the above region to read the cached JSON file the daemon maintains
     # TODO: turn this into a decorator that's used by the appropriate subcommands
     if not os.path.exists(CLUSTERS_LIST_CACHE_FILE):
         _populate_clusters_list_cache_file()
@@ -106,6 +134,8 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv: List[str]) -> List
         "status": _get_list_of_clusters,
         "list": _no_completions_function,
         "instances": _get_list_of_clusters,
+        # TODO: Not allowed to pass region of config for `pcluster ssh`, but _get_list_of_clusters
+        #       will still look for it in the command line. Create a wrapper around it?
         "ssh": _get_list_of_clusters,
         "createami": _get_completions_for_createami_subcommand,
         "configure": _no_completions_function,
