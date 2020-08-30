@@ -2,19 +2,19 @@
 """Get tab-completion candidates for a pcluster command."""
 
 import argparse
+import json
 import logging
 import os
 import re
 import subprocess as sp
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List
 
 from pcluster.config.pcluster_config import PclusterConfig  # type: ignore
 
-from pcluster_autocompleter.utils import config_logger
+from pcluster_autocompleter.utils import config_logger, CACHE_PATH
 
 # TODO: implement file locking for this
 # TODO: handle region
-CLUSTERS_LIST_CACHE_FILE = "/tmp/pcluster-completion-candidates-cluster-list.txt"
 LOG_PATH = "/tmp/pcluster-completions-log.txt"
 LOGGER = logging.getLogger(__name__)
 
@@ -52,19 +52,17 @@ def _get_pcluster_commands() -> List[str]:
 
 
 def _populate_clusters_list_cache_file() -> None:
-    """
-    Populate CLUSTERS_LIST_CACHE_FILE with list of clusters for current region.
-
-    This should be avoided whenever possible, since it requires running `pcluster list`,
-    which is an awfully slow process to wait for during interactive tab-completion.
-    """
-    # pcluster_list_lines = sp.check_output("pcluster list".split()).decode().splitlines()
-    # clusters = [pcluster_list_line.split()[0] for pcluster_list_line in pcluster_list_lines]
-    # TODO: get rid of this line when need for offline testing is gone
-    clusters = ["clusterOne", "clusterTwo", "clusterThree"]
-    with open(CLUSTERS_LIST_CACHE_FILE, "w") as clusters_list_cache_file:
-        for cluster in clusters:
-            clusters_list_cache_file.write(f"{cluster}\n")
+    """Populate CACHE_PATH with list of clusters for current region."""
+    # TODO: get rid of this function after initial development.
+    clusters = {
+        "us-east-1": [
+            {"name": "clusterOne", "status": "CREATE_COMPLETE", "cli_version": "2.8.0"},
+            {"name": "clusterTwo", "status": "CREATE_COMPLETE", "cli_version": "2.8.0"},
+            {"name": "clusterThree", "status": "CREATE_COMPLETE", "cli_version": "2.8.0"},
+        ],
+    }
+    with open(CACHE_PATH, "w") as cache_file:
+        json.dump(clusters, cache_file)
 
 
 def _parse_region_and_config_from_subcommand_args(argv: List[str]) -> Dict[str, str]:
@@ -75,7 +73,7 @@ def _parse_region_and_config_from_subcommand_args(argv: List[str]) -> Dict[str, 
     return vars(argv_parser.parse_known_args(argv))
 
 
-def _get_region_to_use(argv: List[str]) -> Optional[str]:
+def _get_region_to_use(argv: List[str]) -> str:
     """Make a best-effort attempt to figure out which region we should query for resources."""
     # TODO: is there a way to do this without replicating logic in the CLI?
     # Order or precedence:
@@ -83,7 +81,7 @@ def _get_region_to_use(argv: List[str]) -> Optional[str]:
     # 2) config file (which will first try the AWS_DEFAULT_REGION envrion)
     argv_options = _parse_region_and_config_from_subcommand_args(argv)
     if argv_options.get("region"):
-        return argv_options.get("region")
+        return argv_options["region"]
     # Initialize config object so it can do figure out the rest and set AWS_DEFAULT_REGION
     # TODO: do this without the config?
     # TODO: add option to config constructor to avoid full initialization (which invokes a lot of network calls)
@@ -91,17 +89,20 @@ def _get_region_to_use(argv: List[str]) -> Optional[str]:
     return os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
 
+def _get_list_of_clusters_for_region(region: str) -> List[str]:
+    if not os.path.exists(CACHE_PATH):
+        _populate_clusters_list_cache_file()  # TODO: return empty list, let daemon populate
+    with open(CACHE_PATH) as cache_file:
+        return [cluster.get("name") for cluster in json.load(cache_file).get(region)]
+
+
 def _get_list_of_clusters(subcommand: str, argv: List[str]) -> List[str]:
     """Return list of clusters from cached file."""
-    region = _get_region_to_use(argv)
-    # TODO: use the above region to read the cached JSON file the daemon maintains
     # TODO: turn this into a decorator that's used by the appropriate subcommands
-    if not os.path.exists(CLUSTERS_LIST_CACHE_FILE):
-        _populate_clusters_list_cache_file()
-    clusters = []
-    with open(CLUSTERS_LIST_CACHE_FILE) as cluster_names_file:
-        clusters = [cluster_name_line.strip() for cluster_name_line in cluster_names_file]
-    LOGGER.debug(f"Found the following active clusters: {' '.join(clusters)}")
+    region = _get_region_to_use(argv)
+    clusters = _get_list_of_clusters_for_region(region)
+    # TODO: filter on cluster state based on command?
+    LOGGER.debug(f"Found the following active clusters in {region}: {' '.join(clusters)}")
     return clusters
 
 

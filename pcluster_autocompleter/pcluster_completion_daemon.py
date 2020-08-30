@@ -9,9 +9,9 @@ import logging
 import subprocess as sp
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Union
+from typing import Dict, List
 
-from pcluster_autocompleter.utils import config_logger
+from pcluster_autocompleter.utils import config_logger, CACHE_PATH
 
 
 # TODO: make this stuff configurable
@@ -27,7 +27,6 @@ REGIONS = [
     "us-west-1",
     "us-west-2",
 ]
-CACHE_PATH = "/tmp/pcluster-completions-daemon-cache.txt"
 
 
 def _parse_fields_from_pcluster_list_line(output_line: str) -> Dict[str, str]:
@@ -63,11 +62,11 @@ def _get_active_clusters_for_region(region: str) -> List[Dict[str, str]]:
     return _parse_pcluster_list_output(output)
 
 
-def _get_active_clusters_for_all_regions() -> List[Dict[str, Union[str, List[Dict[str, str]]]]]:
-    return [{"region": region, "clusters": _get_active_clusters_for_region(region)} for region in REGIONS]
+def _get_active_clusters_for_all_regions() -> Dict[str, List[Dict[str, str]]]:
+    return {region: _get_active_clusters_for_region(region) for region in REGIONS}
 
 
-def _write_cluster_info_to_cache(clusters_info: List[Dict[str, Union[str, List[Dict[str, str]]]]]) -> None:
+def _write_cluster_info_to_cache(clusters_info: Dict[str, List[Dict[str, str]]]) -> None:
     # TODO: file locking
     # TODO: is it ever necessary to update existing info rather than dumping the new info?
     with open(CACHE_PATH, "w") as cache_file:

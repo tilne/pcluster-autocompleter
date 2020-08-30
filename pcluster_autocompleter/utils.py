@@ -3,6 +3,8 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+CACHE_PATH = "/tmp/pcluster-completions-daemon-cache.json"
+
 
 def config_logger(logger: logging.Logger, log_path: str) -> None:
     log_path = "/tmp/pcluster-completions-log.txt"
