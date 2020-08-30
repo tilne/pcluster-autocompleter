@@ -9,6 +9,8 @@ import re
 import subprocess as sp
 from typing import Callable, Dict, List
 
+import pkg_resources
+
 from pcluster.config.pcluster_config import PclusterConfig  # type: ignore
 
 from pcluster_autocompleter.utils import config_logger, CACHE_PATH
@@ -116,6 +118,53 @@ def _get_completions_for_dcv_subcommand(subcommand: str, argv: List[str]) -> Lis
     return []
 
 
+def _get_pcluster_version() -> str:
+    """Get the version of the pcluster CLI in use."""
+    version = pkg_resources.get_distribution("aws-parallelcluster").version
+    LOGGER.debug(f"Detected aws-parallelcluster version: {version}")
+    return version
+
+
+def _parse_cli_options_from_help_message(subcommand: str) -> List[str]:
+    """Parse CLI options from output produced by running `pcluster {subcommand} --help`."""
+    help_message = sp.check_output(f"pcluster {subcommand} --help".split()).decode()
+    options = []
+    # this regex should match lines of help message output with short and long options
+    # examples:
+    #      -r REGION, --region REGION
+    #      -nr, --norollback     Disables stack rollback on error.
+    #      --keep-logs           Keep cluster's CloudWatch log group data after deleting.
+    pattern = r'\s+(-[a-zA-Z]+)?(\s+([A-Z_]+))?,?\s(--[a-zA-Z-]+)(\s([A-Z_]+))?'
+    short_option_capture_group = 1
+    long_option_capture_group = 4
+    # The following capture groups aren't used yet
+    # short_option_arg_capture_group = 3
+    # long_option_arg_capture_group = 6
+    for line in help_message.splitlines():
+        match = re.search(pattern, line)
+        if match:
+            # TODO: append something that can be used to decide whether an option requires
+            #       a positional arg.
+            for capture_group in (short_option_capture_group, long_option_capture_group):
+                if match.group(capture_group):
+                    options.append(match.group(capture_group))
+    LOGGER.debug(
+        f"Parsed the following options from the `pcluster {subcommand}` help message: {options}"
+    )
+    return options
+
+
+def _get_cli_options_for_subcommand(subcommand: str) -> List[str]:
+    """Parse a list of valid CLI options for `pcluster {subcommand}` from the help message."""
+    # TODO write this info to a file since it doesn't change for a given version
+    version = _get_pcluster_version()
+    options = _parse_cli_options_from_help_message(subcommand)
+    LOGGER.debug(
+        f"Found the following CLI options for `pcluster {subcommand}` in v{version}: {options}"
+    )
+    return options
+
+
 def _get_completions_for_pcluster_subcommand(subcommand_argv: List[str]) -> List[str]:
     """
     Get completions for the given pcluster subcommand.
@@ -126,29 +175,40 @@ def _get_completions_for_pcluster_subcommand(subcommand_argv: List[str]) -> List
     """
     # TODO: also suggest positional args specific to each command
     _no_completions_function: Callable[[str, List[str]], List[str]] = lambda subcommand, argv: []
+    subcommands_that_require_cluster_names = [
+        "update", "delete", "start", "stop", "status", "instances", "ssh", "dcv"
+    ]
     subcommand_to_completions_getter = {
         "create": _no_completions_function,
-        "update": _get_list_of_clusters,
-        "delete": _get_list_of_clusters,
-        "start": _get_list_of_clusters,
-        "stop": _get_list_of_clusters,
-        "status": _get_list_of_clusters,
+        "update": _no_completions_function,
+        "delete": _no_completions_function,
+        "start": _no_completions_function,
+        "stop": _no_completions_function,
+        "status": _no_completions_function,
         "list": _no_completions_function,
-        "instances": _get_list_of_clusters,
-        # TODO: Not allowed to pass region of config for `pcluster ssh`, but _get_list_of_clusters
-        #       will still look for it in the command line. Create a wrapper around it?
-        "ssh": _get_list_of_clusters,
+        "instances": _no_completions_function,
+        # TODO: Not allowed to pass region of config for `pcluster ssh`, but
+        #       _get_list_of_clusters_for_region will still look for it in the command line.
+        #       Create a wrapper around it?
+        "ssh": _no_completions_function,
         "createami": _get_completions_for_createami_subcommand,
         "configure": _no_completions_function,
         "version": _no_completions_function,
         "dcv": _get_completions_for_dcv_subcommand,
     }
     subcommand = subcommand_argv[0]
+    LOGGER.debug(f"Getting completions for `pcluster {subcommand}`")
     if subcommand not in subcommand_to_completions_getter:
         LOGGER.error(f"No completion suggestions available for `pcluster {subcommand}`")
         return []
-    LOGGER.debug(f"Getting completions for `pcluster {subcommand}`")
-    return subcommand_to_completions_getter[subcommand](subcommand, subcommand_argv[1:])
+    completions = _get_cli_options_for_subcommand(subcommand)
+    completions.extend(
+        subcommand_to_completions_getter[subcommand](subcommand, subcommand_argv[1:])
+    )
+    if subcommand in subcommands_that_require_cluster_names:
+        completions.extend(_get_list_of_clusters(subcommand, subcommand_argv[1:]))
+    LOGGER.debug(f"Found the following completions for `pcluster {subcommand}`: {completions}")
+    return completions
 
 
 def main() -> None:
