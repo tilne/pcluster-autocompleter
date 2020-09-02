@@ -17,6 +17,7 @@ from pcluster_autocompleter.utils import config_logger, CACHE_PATH
 
 # TODO: implement file locking for this
 # TODO: handle region
+CLI_OPTIONS_CACHE_PATH = "/tmp/pcluster-completions-subcommand-options-path.json"
 LOG_PATH = "/tmp/pcluster-completions-log.txt"
 LOGGER = logging.getLogger(__name__)
 
@@ -154,11 +155,44 @@ def _parse_cli_options_from_help_message(subcommand: str) -> List[str]:
     return options
 
 
+def _write_empty_json_object_to_file(path: str) -> None:
+    """Create a file at the given path containing an empty JSON object."""
+    with open(path, "a") as outfile:
+        json.dump({}, outfile)
+
+
+def _read_cli_options_cache_object() -> Dict[str, Dict[str, List[str]]]:
+    """Read the JSON object from CLI_OPTIONS_CACHE_PATH."""
+    with open(CLI_OPTIONS_CACHE_PATH) as cli_options_cache_file:
+        return json.load(cli_options_cache_file)
+
+
+def _read_cli_options_for_subcommand_from_cache(subcommand: str, version: str) -> List[str]:
+    """Read the CLI options for the subcommand from CLI_OPTIONS_CACHE_PATH."""
+    if not os.path.isfile(CLI_OPTIONS_CACHE_PATH):
+        # TODO: use generic 'write this object to cache' function
+        _write_empty_json_object_to_file(CLI_OPTIONS_CACHE_PATH)
+    cli_options_cache = _read_cli_options_cache_object()
+    return cli_options_cache.get(version, {}).get(subcommand, [])
+
+
+def _write_cli_options_for_subcommand_to_cache(subcommand: str, version: str, options: List[str]) -> None:
+    """Write the options parsed from the help message of the subcommand from the version to CLI_OPTIONS_CACHE_PATH."""
+    cli_options_cache = _read_cli_options_cache_object()
+    cli_options_cache[version][subcommand] = options
+    with open(CLI_OPTIONS_CACHE_PATH, "w") as cli_options_cache_file:
+        # TODO: use generic 'write this object to cache' function
+        json.dump(cli_options_cache, cli_options_cache_file)
+
+
 def _get_cli_options_for_subcommand(subcommand: str) -> List[str]:
     """Parse a list of valid CLI options for `pcluster {subcommand}` from the help message."""
     # TODO write this info to a file since it doesn't change for a given version
     version = _get_pcluster_version()
-    options = _parse_cli_options_from_help_message(subcommand)
+    options = _read_cli_options_for_subcommand_from_cache(subcommand, version)
+    if not options:
+        options = _parse_cli_options_from_help_message(subcommand)
+        _write_cli_options_for_subcommand_to_cache(subcommand, version, options)
     LOGGER.debug(
         f"Found the following CLI options for `pcluster {subcommand}` in v{version}: {options}"
     )
